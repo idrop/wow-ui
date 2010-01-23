@@ -5,11 +5,14 @@ var wow = new Wow()
  */
 function Wow() {
     this.currs = new Array("USD", "GBP", "EUR", "CAD", "AUD", "CNY", "JPY", "KRW", "TWD")
-    this.inited = false
     this.iousCode = null
     this.settlementsCode = null
+    this.inited = false
 }
 
+/**
+ * invoked from wave.xml
+ */
 function waveInit() {
 
     initErrorHandle()
@@ -18,18 +21,20 @@ function waveInit() {
     if (wave && wave.isInWaveContainer()) {
 
         if (! wave.getViewer()) {
-            setTimeout(waveInit, 200)
+            setTimeout(waveInit, 500)
         } else {
 
             if (! wave.getState()) {
-                setTimeout(waveInit, 200)
+                setTimeout(waveInit, 500)
             } else {
-                wave.setStateCallback(onWaveStateChange)
+
                 wave.setParticipantCallback(onWaveParticipantChange)
-                var wid = getWaveId()
-                if (! wid) {
+                wave.setStateCallback(onWaveStateChange)
+
+                if (! getWaveId()) {
                     newWave()
                 } else {
+
                     getCosts()
                 }
             }
@@ -46,16 +51,20 @@ function onWaveStateChange() {
 }
 
 function onWaveParticipantChange() {
-    if (wow.inited) {
-        msg("participantsChange", {
+
+    if (wow.inited && getWaveId()) {
+
+        msg("participantsChange",
+        {
             wid: getWaveId(),
             uid : wave.getViewer().getId(),
+            creator : wave.getHost().getId(),
             participants : getParticipantIds()
-        }, write)
-    } else {
-        wow.inited = true
+        },
+                write)
     }
 }
+
 
 function initErrorHandle() {
     $(this).ajaxError(function(event, request, settings) {
@@ -92,17 +101,17 @@ function clearMsg(klass) {
 }
 
 function newWave() {
-    var wid = wave.getHost().getId() + "-" + new Date().getTime()
+    var wid = wave.getWaveId()
     log("new wave fired with id " + wid)
+
+    wave.getState().submitDelta({wid : wid})
+
     msg("newWave", {
         wid : wid,
         uid : wave.getViewer().getId(),
         participants : getParticipantIds()
     }, write)
-    wave.getState().submitDelta({
-        wid : wid,
-        test : "test"
-    })
+
 }
 
 function getParticipantIds() {
@@ -112,6 +121,15 @@ function getParticipantIds() {
         str += (friends[i].getId() + ",")
     }
     return str.substring(0, str.length - 1)
+}
+
+function addedToWave() {
+    var id = wave.getViewer().getId()
+    var participants = wave.getParticipants()
+    for (var i = 0; i < participants.length; i++) {
+        if (participants[i].getId() == id) return true
+    }
+    return false
 }
 
 function addEvent(event) {
@@ -213,17 +231,10 @@ function table(outer, event) {
 
     // costs
     for (var i = 0; i < event.costs.length; i++) {
+
+        var row = $("<tr></tr>")
         var cost = event.costs[i]
-
-        var costLink = $("<a href='#'>" + cost.name + "</a>")
-
-        costLink.click(function(ev) {
-            ev.preventDefault()
-            $(this).toggle()
-            showCostEdit(cost, $(this))
-
-        })
-        var row = $("<tr></tr>").append($("<td></td>").append(costLink))
+        row.append($("<td></td>").append(makeCostLink(cost)))
         if (i % 2 == 0) {
             row.addClass("modRow")
         }
@@ -233,6 +244,20 @@ function table(outer, event) {
             showPayments(row, cost, user)
         }
     }
+
+}
+
+function makeCostLink(cost, row) {
+
+    var costLink = $("<a href='#'>" + cost.name + "</a>")
+
+    costLink.click(function(ev) {
+        ev.preventDefault()
+        costLink.toggle()
+        showCostEdit(cost, costLink)
+
+    })
+    return costLink
 
 }
 
@@ -246,7 +271,7 @@ function showCostEdit(cost, sibling) {
         costEdit.remove()
         sibling.toggle()
     })
-    
+
     costEdit.append(costNameEdit).append(costNameEditSubmit).append(costDelete).append(costEditClose)
     costNameEdit.focus()
     sibling.parent().append(costEdit)
@@ -446,11 +471,18 @@ function getParticipantName(participantId) {
     return name
 }
 
+/**
+ *display existing costs if i'm registered on this wave
+ **/
 function getCosts() {
-    msg("existingCosts", {
-        wid : getWaveId(),
-        uid : wave.getViewer().getId()
-    }, write)
+    if (addedToWave()) {
+        msg("existingCosts", {
+            wid : getWaveId(),
+            uid : wave.getViewer().getId()
+        }, write)
+    }
+
+
 }
 
 function nonZeroPayments(data) {
@@ -481,6 +513,10 @@ function write(arr) {
         writeSettlements(data[2])
         $("#tabs").show()
     }
+
+    // adjust height
+    gadgets.window.adjustHeight();
+    wow.inited = true
 
 }
 

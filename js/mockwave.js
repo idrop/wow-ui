@@ -16,7 +16,11 @@ function Wave() {
         list[2] = new Participant("wa", "Warren Miller", "pic_url")
         list[3] = new Participant("julie", "Julie Woodall", "pic_url")
         return list
-    }
+    };
+
+    this.getWaveId = function() {
+        return "mock-id-" + new Date().getTime()
+    };
 
     this.isInWaveContainer = function() {
         return true
